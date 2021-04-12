@@ -19,6 +19,8 @@ def main():
 	# ----------------------------------------
 	# load kernels
 	# ----------------------------------------
+	sf = 4
+
 	PSF_grid = np.load('./data/AC254-075-A-ML-Zemax(ZMX).npz')['PSF']
 	PSF_grid = PSF_grid.astype(np.float32)
 	gx,gy = PSF_grid.shape[:2]
@@ -37,7 +39,7 @@ def main():
 	# ----------------------------------------
 	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 	model = net(n_iter=8, h_nc=64, in_nc=4, out_nc=3, nc=[64, 128, 256, 512],
-					nb=2, act_mode="R", downsample_mode='strideconv', upsample_mode="convtranspose")
+					nb=2,sf=sf, act_mode="R", downsample_mode='strideconv', upsample_mode="convtranspose")
 	model.proj.load_state_dict(torch.load('./data/usrnet_pretrain.pth'),strict=True)
 	model.train()
 	for _, v in model.named_parameters():
@@ -68,6 +70,7 @@ def main():
 		params += [{"params":[value],"lr":0.0001}]
 	optimizer = torch.optim.Adam(params,lr=0.0001,betas=(0.9,0.999))
 	scheduler = torch.optim.lr_scheduler.StepLR(optimizer,step_size=1000,gamma=0.9)
+
 
 	patch_size = [128,128]
 	expand = PSF_grid.shape[2]//2
@@ -113,7 +116,7 @@ def main():
 		patch_L_wrap = np.vstack((patch_L_wrap[-block_expand:,:,:],patch_L_wrap[:patch_size[0]*patch_num[0]+block_expand,:,:]))
 		x = util.uint2single(patch_L_wrap)
 		x = util.single2tensor4(x)
-
+		x = x[...,::sf,::sf]
 
 		x_gt = util.uint2single(patch_H[expand:-expand,expand:-expand])
 		x_gt = util.single2tensor4(x_gt)
@@ -137,7 +140,7 @@ def main():
 			for w_ in range(patch_num[0]):
 				cd.append(ab_patch[w_:w_+1,h_])
 		cd = torch.cat(cd,dim=0)
-		x_E = model.forward_patchwise(x,k,cd,patch_num,patch_size)
+		x_E = model.forward_patchwise_SR(x,k,cd,patch_num,[patch_size[0]//sf,patch_size[1]//sf],sf)
 
 		predict = x_E[...,block_expand:block_expand+patch_size[0]*patch_num[0],\
 			block_expand:block_expand+patch_size[1]*patch_num[1]]
@@ -148,9 +151,9 @@ def main():
 		scheduler.step()
 		print('iter:{},loss {}'.format(global_iter+1,loss.item()))
 
-		patch_L = patch_L_wrap.astype(np.uint8)
+		patch_L = util.tensor2uint(x)
+		patch_L = cv2.resize(patch_L,dsize=None,fx=sf,fy=sf,interpolation=cv2.INTER_NEAREST)
 		patch_E = util.tensor2uint(x_E)[block_expand:-block_expand,block_expand:-block_expand]
-
 		show = np.hstack((patch_H[expand:-expand,expand:-expand],patch_L[block_expand:-block_expand,block_expand:-block_expand],patch_E))
 
 		cv2.imshow('HL',show)
@@ -158,15 +161,20 @@ def main():
 
 		global_iter+= 1
 
-		#change the save period
-		if global_iter % 100 ==0:
-			ab_numpy = ab.detach().cpu().numpy().flatten()
-			torch.save(model.state_dict(),'./ZEMAX_model/usrnet_ZEMAX_iter{}.pth'.format(global_iter))
-			np.savetxt('./ZEMAX_model/ab_ZEMAX_iter{}.txt'.format(global_iter),ab_numpy)
+		# if global_iter % 100 ==0:
+		# 	ab_numpy = ab.detach().cpu().numpy().flatten()#.reshape(-1,2*stage+1)
+		# 	torch.save(model.state_dict(),'./ZEMAX_model/usrnet_ZEMAX_iter{}_loss_{:.2f}.pth'.format(global_iter,loss.item()))
+		# 	np.savetxt('./ZEMAX_model/ab_ZEMAX_iter{}_loss_{:.2f}.txt'.format(global_iter,loss.item()),ab_numpy)
+
 		if key==ord('q'):
 			running = False
 			break
-	ab_numpy = ab.detach().cpu().numpy().flatten()
+		if key==ord('s'):
+			ab_numpy = ab.detach().cpu().numpy().flatten()#.reshape(-1,2*stage+1)
+			torch.save(model.state_dict(),'usrnet_ZEMAX.pth')
+			np.savetxt('ab_ZEMAX.txt',ab_numpy)
+
+	ab_numpy = ab.detach().cpu().numpy().flatten()#.reshape(-1,2*stage+1)
 	torch.save(model.state_dict(),'./ZEMAX_model/usrnet_ZEMAX.pth')
 	np.savetxt('./ZEMAX_model/ab_ZEMAX.txt',ab_numpy)
 

@@ -30,8 +30,6 @@ def main():
 	img_L.sort()
 	img_H.sort()
 
-	out = cv2.VideoWriter('outpy.avi',cv2.VideoWriter_fourcc('M','J','P','G'),30,(1024,768))
-
 	mask = np.tri(1024,1024,-2)
 	mask_top = mask.T
 	
@@ -41,9 +39,6 @@ def main():
 	mask = np.dstack((mask,mask,mask))
 	mask_top = np.dstack((mask_top,mask_top,mask_top))
 
-
-	#img_L = img_L[::2]
-	#img_H = img_H[::2]
 
 	idx  = 0 
 	for l,h in zip(img_L,img_H):
@@ -57,7 +52,9 @@ def main():
 		fuse = fuse.astype(np.uint8)
 		print(idx)
 		idx += 1
-		out.write(fuse)
+		cv2.imshow("fuse",fuse)
+		cv2.waitKey(-1)
+		#out.write(fuse)
 
 
 

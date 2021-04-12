@@ -14,24 +14,8 @@ from models.uabcnet import UABCNet as net
 import matplotlib.pyplot as plt
 import utils.utils_image as util
 import utils.utils_deblur as util_deblur
+import time
 
-def strip_prefix_if_present(state_dict, prefix):
-	keys = sorted(state_dict.keys())
-	#if not all(key.startswith(prefix) for key in keys):
-	#    return state_dict
-	stripped_state_dict = OrderedDict()
-	for key, value in state_dict.items():
-		if key.startswith(prefix):
-			stripped_state_dict[key.replace(prefix, "")] = value
-	return stripped_state_dict
-
-def make_size_divisible(img,stride):
-	w,h,_ = img.shape
-
-	w_new = w//stride*stride
-	h_new = h//stride*stride
-
-	return img[:w_new,:h_new,:]
 
 def main():
 	# ----------------------------------------
