@@ -344,14 +344,13 @@ class UABCNet(nn.Module):
                 Fk_all.append(Fk)
                 FkC_all.append(FkC)
 
-        # 2-(1).Init deconv. Weiner filter.
         x = torch.cat(y_init_all, dim=0)
         x = self.assemble_patches(
             x, patch_num, [patch_size[0]*sf, patch_size[1]*sf])
-        # output.append(x.clone())
+        
         for i in range(self.n):
             # chop
-            # (1)ref-proj
+            # (1)ref-deconv
             z = self.chop_to_patches(
                 x, patch_num, [patch_size[0]*sf, patch_size[1]*sf])
             z_temp = []

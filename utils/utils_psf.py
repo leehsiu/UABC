@@ -6,6 +6,14 @@ import scipy.io
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
+def normalize_PSF(psf,method='local'):
+    psf = psf.astype(np.float32)
+	gx,gy = psf.shape[:2]
+	for yy in range(gy):
+		for xx in range(gx):
+			psf[xx,yy] = psf[xx,yy]/np.sum(psf[xx,yy],axis=(0,1))
+    return psf
+
 def mv2pm(mv, K, mm2pixel):
   RY1 = np.array([[np.cos(mv[0]), 0, np.sin(mv[0])],
                   [0, 1, 0],
