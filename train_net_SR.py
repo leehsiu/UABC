@@ -13,38 +13,7 @@ import utils.utils_image as util
 import utils.utils_deblur as util_deblur
 import utils.utils_psf as util_psf
 from models.uabcnet import UABCNet as net
-def load_kernels(kernel_path):
-	kernels = []
-	kernel_files = glob.glob(os.path.join(kernel_path,'*.npz'))
-	kernel_files.sort()
-	for kf in kernel_files:
-		PSF_grid = np.load(kf)['PSF']
-		PSF_grid = PSF_grid.astype(np.float32)
-		kw,kh = PSF_grid.shape[:2]
-		for w_ in range(kw):
-			for h_ in range(kh):
-				PSF_grid[w_,h_] = PSF_grid[w_,h_]/np.sum(PSF_grid[w_,h_],axis=(0,1))
-		kernels.append(PSF_grid)
-	return kernels
 
-def draw_random_kernel(kernels,patch_num):
-	n = len(kernels)
-	i = np.random.randint(2*n)
-	if i<n:
-		psf = kernels[i]
-	else:
-		psf = gaussian_kernel_map(patch_num)
-	return psf
-
-
-def gaussian_kernel_map(patch_num):
-	PSF = np.zeros((patch_num[0],patch_num[1],25,25,3))
-	for w_ in range(patch_num[0]):
-		for h_ in range(patch_num[1]):
-			PSF[w_,h_,...,0] = util_deblur.gen_kernel()
-			PSF[w_,h_,...,1] = util_deblur.gen_kernel()
-			PSF[w_,h_,...,2] = util_deblur.gen_kernel()
-	return PSF
 
 def draw_training_pair(image_H,psf,sf,patch_num,patch_size,image_L=None):
 	w,h = image_H.shape[:2]
@@ -111,9 +80,8 @@ def main():
 
 	#1. local PSF
 	#shape: gx,gy,kw,kw,3
-	#PSF_grid = np.load('./data/AC254-075-A-ML-Zemax(ZMX).npz')['PSF']
-	#PSF_grid = util_psf.normalize_PSF(PSF_grid)
-	all_PSFs = load_kernels('./data')
+	PSF_grid = np.load('./data/AC254-075-A-ML-Zemax(ZMX).npz')['PSF']
+	PSF_grid = util_psf.normalize_PSF(PSF_grid)
 	#
 	gx,gy = PSF_grid.shape[:2]
 
