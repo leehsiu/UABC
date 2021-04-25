@@ -128,7 +128,6 @@ def main():
 				inv_weight_patch[0,2,w_*patch_size[0]:(w_+1)*patch_size[0],h_*patch_size[1]:(h_+1)*patch_size[1]] = inv_weight[w_+h_*patch_num[0],2]
 				k_local.append(k_tensor[w_+h_*patch_num[0]:w_+h_*patch_num[0]+1])
 
-
 		k = torch.cat(k_local,dim=0)
 		[x,x_gt,k,inv_weight_patch] = [el.to(device) for el in [x,x_gt,k,inv_weight_patch]]
 		ab_patch = F.softplus(ab[px_start:px_start+patch_num[0],py_start:py_start+patch_num[1]])

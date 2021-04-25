@@ -5,8 +5,7 @@ import cv2
 import torch.utils.data
 import torch.nn.functional as F
 
-
-
+#not used currently
 class DeblurData(torch.utils.data.Dataset):
 	def __init__(self,root_path):
 		super(DeblurData,self).__init__()
@@ -14,7 +13,6 @@ class DeblurData(torch.utils.data.Dataset):
 		#file_meta as 
 		#file_path, height, width
 		self.root_path = root_path
-
 		self.patch_size = patch_size
 		#images
 		#load kernels

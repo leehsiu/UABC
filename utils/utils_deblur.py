@@ -105,6 +105,7 @@ def FFTblur2d(image,kernel):
 	blur = blur.cpu().numpy()[0].transpose(1,2,0)
 	return blur
 
+
 def blockConv2d(image,kernels,expand=0):
 	image = image.astype(np.float32)
 	W,H,C = image.shape
@@ -113,7 +114,6 @@ def blockConv2d(image,kernels,expand=0):
 	to_pad = k_size//2 - expand
 	image_pad = np.pad(image,((to_pad,to_pad),(to_pad,to_pad),(0,0)))
 	output = np.zeros((W-expand*2,H-expand*2,C),np.float32)
-
 	for w_ in range(grid_w):
 		for h_ in range(grid_h):
 			x_start = w_*patch_size
@@ -121,14 +121,14 @@ def blockConv2d(image,kernels,expand=0):
 			y_start = h_*patch_size
 			y_end = (h_+1)*patch_size + k_size//2*2
 			patch = image_pad[x_start:x_end,y_start:y_end]
-			#if we change this kernels[w_,h_] to 
-			#it is interpolation based
+
 			output[x_start:x_start+patch_size,y_start:y_start+patch_size,0] \
 				= convolve2d(patch[...,0],kernels[w_,h_,:,:,0],'valid')
 			output[x_start:x_start+patch_size,y_start:y_start+patch_size,1] \
 				= convolve2d(patch[...,1],kernels[w_,h_,:,:,1],'valid')
 			output[x_start:x_start+patch_size,y_start:y_start+patch_size,2] \
 				= convolve2d(patch[...,2],kernels[w_,h_,:,:,2],'valid')
+	output = output.astype(np.uint8)
 	return output
 
 '''
