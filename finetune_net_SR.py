@@ -10,7 +10,10 @@ import numpy as np
 import utils.utils_image as util
 import utils.utils_deblur as util_deblur
 import utils.utils_psf as util_psf
+import models.gan as gan
+from utils.image_pool import ImagePool
 from models.uabcnet import UABCNet as net
+
 np.random.seed(0)
 
 def load_kernels(kernel_path):
@@ -101,7 +104,12 @@ def main():
 	model = model.to(device)
 
 	#3. set up discriminator
-	#model_D = models.gan.PatchGANDiscriminator()
+	model_D = gan.PatchDiscriminator(5)
+	model_D =model_D.to(device)
+
+	gan_loss = gan.GANLoss(mode='lsgan')
+	gan_loss = gan_loss.to(device)
+	fake_images = ImagePool(16)
 
 
 	#positional lambda, mu for HQS.
@@ -115,8 +123,11 @@ def main():
 		params += [{"params":[value],"lr":1e-5}]
 
 	#
-	optimizer = torch.optim.Adam(params,lr=0.0001,betas=(0.9,0.999))
-	#optimizer_D = torch.optim.Adam(params,lr=0.0001,betas=(0.9,0.999))
+	params_D = []
+	params_D += list(model_D.parameters())
+
+	optimizer = torch.optim.Adam(params,lr=1e-4,betas=(0.9,0.999))
+	optimizer_D = torch.optim.Adam(params_D,lr=1e-4,betas=(0.9,0.999))
 
 	scheduler = torch.optim.lr_scheduler.StepLR(optimizer,step_size=1000,gamma=0.9)
 
@@ -125,9 +136,9 @@ def main():
 	imgs_H.sort()
 
 	global_iter = 0
-	N_maxiter = 2000
+	N_maxiter = 200000
 
-	PSF_grid = draw_random_kernel(all_PSFs,patch_num)
+	PSF_grid = draw_random_kernel(all_PSFs)
 
 	for i in range(N_maxiter):
 
@@ -161,16 +172,24 @@ def main():
 
 		x_E = model.forward_patchwise_SR(x,k,ab_patch_v,patch_num,[patch_size[0],patch_size[1]],sf)
 
-		loss = F.l1_loss(x_E,x_gt)
+
+		loss_l1 = F.l1_loss(x_E,x_gt)
+		loss_gan = gan_loss(model_D(x_E),True)
+		loss = loss_l1 + loss_gan
 		optimizer.zero_grad()
 		loss.backward()
 		optimizer.step()
 
-		#loss_D = loss.evaluate(x_E)+loss.evaluate(x_gt)
-		#optimizer_D.zero_grad()
-		#loss_D.backward()
-		#optimizer_D.step()
 
+		pred_real = model_D(x_gt)
+		loss_D_real = gan_loss(pred_real,True)
+		fake = fake_images.query(x_E)
+		pred_fake = model_D(fake.detach())
+		loss_D_fake = gan_loss(pred_fake,False)
+		loss_D = (loss_D_fake+loss_D_real)*0.5
+		optimizer_D.zero_grad()
+		loss_D.backward()
+		optimizer_D.step()
 
 		scheduler.step()
 
