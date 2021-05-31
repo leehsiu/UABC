@@ -81,18 +81,16 @@ def draw_training_pair(image_H,psf,sf,patch_num,patch_size,image_L=None):
 
 def main():
 	#0. global config
-	#scale factor
 	sf = 4	
 	stage = 8
 	patch_size = [32,32]
 	patch_num = [2,2]
 
 	#1. local PSF
-	#shape: gx,gy,kw,kw,3
 	all_PSFs = load_kernels('./data')
 
 
-	#2. local model
+	#2. load model
 	device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 	model = net(n_iter=8, h_nc=64, in_nc=4, out_nc=3, nc=[64, 128, 256, 512],
 					nb=2,sf=sf, act_mode="R", downsample_mode='strideconv', upsample_mode="convtranspose")
@@ -101,19 +99,25 @@ def main():
 	for _, v in model.named_parameters():
 		v.requires_grad = True
 	model = model.to(device)
-	#positional lambda, mu for HQS, set as free trainable parameters here.
 
-	#ab_buffer = np.loadtxt('./data/ab.txt').reshape((patch_num[0],patch_num[1],2*stage,3)).astype(np.float32)
+	#3. set up discriminator
+	#model_D = models.gan.PatchGANDiscriminator()
+
+
+	#positional lambda, mu for HQS.
 	ab_buffer = np.zeros((patch_num[0],patch_num[1],2*stage,3))
 	ab_buffer[:,:,::2,:]=0.01
 	ab_buffer[:,:,1::2,:]=0.1
 	ab = torch.tensor(ab_buffer,dtype=torch.float32,device=device,requires_grad=True)
 	params = []
-	params += [{"params":[ab],"lr":0.0005}]
+	params += [{"params":[ab],"lr":5e-4}]
 	for key,value in model.named_parameters():
-		params += [{"params":[value],"lr":1e-6}]
+		params += [{"params":[value],"lr":1e-5}]
 
+	#
 	optimizer = torch.optim.Adam(params,lr=0.0001,betas=(0.9,0.999))
+	#optimizer_D = torch.optim.Adam(params,lr=0.0001,betas=(0.9,0.999))
+
 	scheduler = torch.optim.lr_scheduler.StepLR(optimizer,step_size=1000,gamma=0.9)
 
 	#3.load training data
@@ -157,11 +161,17 @@ def main():
 
 		x_E = model.forward_patchwise_SR(x,k,ab_patch_v,patch_num,[patch_size[0],patch_size[1]],sf)
 
-
 		loss = F.l1_loss(x_E,x_gt)
 		optimizer.zero_grad()
 		loss.backward()
 		optimizer.step()
+
+		#loss_D = loss.evaluate(x_E)+loss.evaluate(x_gt)
+		#optimizer_D.zero_grad()
+		#loss_D.backward()
+		#optimizer_D.step()
+
+
 		scheduler.step()
 
 		t_iter = time.time() - t0 - t_data
