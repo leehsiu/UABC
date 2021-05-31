@@ -119,12 +119,11 @@ def main():
 	model = model.to(device)
 
 	#positional lambda, mu for HQS, set as free trainable parameters here.
-	ab_buffer = np.loadtxt('./data/ab_finetune.txt').reshape((patch_num[0],patch_num[1],2*stage,3)).astype(np.float32)
+	ab_buffer = np.loadtxt('./data/ab.txt').reshape((patch_num[0],patch_num[1],2*stage,3)).astype(np.float32)
 	#ab[2x2,2*stage,3]
-
 	#ab_buffer = np.ones((patch_num[0],patch_num[1],2*stage,3),dtype=np.float32)*0.1
 	ab = torch.tensor(ab_buffer,device=device,requires_grad=False)
-	ab = F.softplus(ab)
+	#ab = F.softplus(ab)
 
 
 
@@ -140,7 +139,6 @@ def main():
 	PSF_grid = using_AC254_lens(all_PSFs,patch_num)
 
 	all_PSNR = []
-	out_folder = 'finetune'
 
 
 	for i in range(N_maxiter):
@@ -183,7 +181,7 @@ def main():
 
 		show = np.hstack((patch_H,patch_L,patch_E))
 		#cv2.imwrite(os.path.join('./result',out_folder,'result-{:04d}.png'.format(i+1)),show)
-	np.savetxt(os.path.join('./result',out_folder,'psnr.txt'),all_PSNR)
+	#np.savetxt(os.path.join('./result',out_folder,'psnr.txt'),all_PSNR)
 
 if __name__ == '__main__':
 

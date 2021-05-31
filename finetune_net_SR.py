@@ -1,19 +1,16 @@
 import torch
 import torch.optim
 import torch.nn.functional as F
-
 import cv2
 import os.path
 import time
 import os
 import glob
 import numpy as np
-import matplotlib.pyplot as plt
 import utils.utils_image as util
 import utils.utils_deblur as util_deblur
 import utils.utils_psf as util_psf
 from models.uabcnet import UABCNet as net
-
 np.random.seed(0)
 
 def load_kernels(kernel_path):
@@ -26,13 +23,9 @@ def load_kernels(kernel_path):
 		kernels.append(PSF_grid)
 	return kernels
 
-def draw_random_kernel(kernels,patch_num):
+def draw_random_kernel(kernels):
 	psf = kernels[0]
 	psf = psf[:2,:2]
-	#if i<0:
-	#	psf = kernels[i]
-	#else:
-	#	psf = gaussian_kernel_map(patch_num)
 	return psf
 
 def gaussian_kernel_map(patch_num):
@@ -50,16 +43,6 @@ def draw_training_pair(image_H,psf,sf,patch_num,patch_size,image_L=None):
 	gx,gy = psf.shape[:2]
 	px_start = np.random.randint(0,gx-patch_num[0]+1)
 	py_start = np.random.randint(0,gy-patch_num[1]+1)
-	#wether or not to focus on edges.
-	# mode = np.random.randint(5)
-	# if mode==0:
-	# 	px_start = 0
-	# if mode==1:
-	# 	px_start = gx-patch_num[0]
-	# if mode==2:
-	# 	py_start = 0
-	# if mode==3:
-	# 	py_start = gy-patch_num[1]
 
 	psf_patch = psf[px_start:px_start+patch_num[0],py_start:py_start+patch_num[1]]
 	patch_size_H = [patch_size[0]*sf,patch_size[1]*sf]
@@ -118,12 +101,13 @@ def main():
 	for _, v in model.named_parameters():
 		v.requires_grad = True
 	model = model.to(device)
-
 	#positional lambda, mu for HQS, set as free trainable parameters here.
 
-	ab_buffer = np.loadtxt('./data/ab.txt').reshape((patch_num[0],patch_num[1],2*stage,3)).astype(np.float32)
-	#ab_buffer = np.ones((patch_num[0],patch_num[1],2*stage,3),dtype=np.float32)*0.1
-	ab = torch.tensor(ab_buffer,device=device,requires_grad=True)
+	#ab_buffer = np.loadtxt('./data/ab.txt').reshape((patch_num[0],patch_num[1],2*stage,3)).astype(np.float32)
+	ab_buffer = np.zeros((patch_num[0],patch_num[1],2*stage,3))
+	ab_buffer[:,:,::2,:]=0.01
+	ab_buffer[:,:,1::2,:]=0.1
+	ab = torch.tensor(ab_buffer,dtype=torch.float32,device=device,requires_grad=True)
 	params = []
 	params += [{"params":[ab],"lr":0.0005}]
 	for key,value in model.named_parameters():
@@ -137,32 +121,19 @@ def main():
 	imgs_H.sort()
 
 	global_iter = 0
-
-	all_PSNR = []
 	N_maxiter = 2000
 
 	PSF_grid = draw_random_kernel(all_PSFs,patch_num)
-	#def get_train_pairs()
 
 	for i in range(N_maxiter):
 
 		t0 = time.time()
-		#draw random image.
 		img_idx = np.random.randint(len(imgs_H))
-
 		img_H = cv2.imread(imgs_H[img_idx])
-
-		#img2 = imgs_L[img_idx]
-		#img_L = cv2.imread(img2)
-		#draw random patch from image
-		#a. without img_L
 
 		#draw random kernel
 
-
 		patch_L,patch_H,patch_psf = draw_training_pair(img_H,PSF_grid,sf,patch_num,patch_size)
-		#b.	with img_L
-		#patch_L, patch_H, patch_psf,px_start, py_start,block_expand = draw_training_pair(img_H, PSF_grid, sf, patch_num, patch_size, img_L)
 		t_data = time.time()-t0
 
 		x = util.uint2single(patch_L)
@@ -186,6 +157,7 @@ def main():
 
 		x_E = model.forward_patchwise_SR(x,k,ab_patch_v,patch_num,[patch_size[0],patch_size[1]],sf)
 
+
 		loss = F.l1_loss(x_E,x_gt)
 		optimizer.zero_grad()
 		loss.backward()
@@ -197,7 +169,6 @@ def main():
 		print('[iter:{}] loss:{:.4f}, data_time:{:.2f}s, net_time:{:.2f}s'.format(global_iter+1,loss.item(),t_data,t_iter))
 
 		patch_L = cv2.resize(patch_L,dsize=None,fx=sf,fy=sf,interpolation=cv2.INTER_NEAREST)
-		#patch_L = patch_L[block_expand*sf:-block_expand*sf,block_expand*sf:-block_expand*sf]
 		patch_E = util.tensor2uint((x_E))
 		show = np.hstack((patch_H,patch_L,patch_E))
 		cv2.imshow('H,L,E',show)
@@ -206,9 +177,6 @@ def main():
 
 		if key==ord('q'):
 			break
-		if key==ord('s'):
-			ab_numpy = ab.detach().cpu().numpy().flatten()
-			np.savetxt('./data/ab.txt',ab_numpy)
 
 
 	ab_numpy = ab.detach().cpu().numpy().flatten()
